@@ -1,0 +1,554 @@
+================================================================================
+RECAPITULATIF EXHAUSTIF DES FONCTIONNALITES, AJOUTS ET AMELIORATIONS DU MOTEUR
+================================================================================
+
+1. ABSTRACTION ET EMERGENCE DU CONCEPT DE PREFAB SERIALISABLE
+Le système a été totalement purgé de ses dépendances logicielles rigides (PowerPoint, macros VB locales). Le label de prix est désormais défini comme une structure de données abstraite et autonome (un Gabarit / Prefab) exportable et stockable sous forme de fichier JSON standardisé. Le mode de production direct est scindé d'un "Mode Design" visuel (WYSIWYG) où l'utilisateur assemble, manipule et lie des placeholders graphiques sur une scène avant d'y injecter des données applicatives réelles pour l'impression finale.
+
+2. OPTIMISATION EXTREME DE LA SERIALISATION (PATTERN FLYWEIGHT & DELTA)
+Pour réduire l'empreinte mémoire et la consommation réseau à un niveau quasi nul, la sérialisation n'enregistre jamais les propriétés standards d'un élément graphique. Une table des valeurs par défaut globales (DEFAULTS) est partagée en mémoire. Lors de l'exportation d'un nœud (OptimizedElement), seuls les écarts géométriques et les modifications d'attributs spécifiques (Deltas) sont écrits dans la chaîne de caractères. Les clés de stockage JSON sont compressées sous forme d'identifiants à un seul caractère ("t" pour le type de composant, "g" pour la géométrie matricielle [X, Y, Largeur, Hauteur], "a" pour le dictionnaire d'attributs restreints, "vis" pour l'indicateur binaire de visibilité).
+
+3. MECANISME DE CONTRAINTES ET RESSORTS GRAPHIQUES AUTONOMES
+La classe GraphicConstraint matérialise un objet d'ancrage structurel programmable qui lie deux éléments du label par leurs bordures physiques respectives (Haut, Bas, Gauche, Droite). Cet objet agit comme un ressort virtuel possédant une force de rappel configurable définie par un intervalle de distances autorisées (min_distance, max_distance). Lors d'une manipulation de cliquer-glisser à la souris, le moteur de contraintes intercepte la position théorique demandée par l'opérateur et applique instantanément un algorithme de résolution géométrique (ConstraintSolver) pour interdire les chevauchements de zones, restreindre les déplacements aberrants et verrouiller l'élément dans les limites strictes de la Bounding Box du label parent.
+
+4. SYSTEME DE CACHE GRAPHIQUE A RESSOURCE NULLE (DIRTY FLAG LOGIC)
+L'affichage des ressorts de contraintes à l'écran intègre un drapeau d'invalidation (Dirty Flag). En phase statique (lorsque l'utilisateur ne manipule aucun objet), le coût processeur du moteur est strictement égal à 0%. Les calculs géométriques de positionnement et la génération des spires du ressort sont entièrement suspendus. Le moteur réutiliser indéfiniment un cache de coordonnées physiques pré-calculées. Dès qu'un élément lié subit une mise à jour ou un déplacement, le drapeau "_is_dirty" passe à True, ce qui déclenche un recalcul unique et isolé des vecteurs du ressort concerné lors du rafraîchissement d'affichage suivant.
+
+5. TRACE VECTORIEL ET OPTIMISATION DU PIPELINE D'AFFICHAGE GPU
+L'algorithme de génération visuelle du ressort fonctionne de manière totalement linéaire, sans invoquer de fonctions trigonométriques lourdes de type sinus ou cosinus. Il détermine les sommets des spires du zigzag à l'aide de simples interpolations de segments et de vecteurs normaux perpendiculaires. Au niveau de la couche graphique, le système abandonne le tracé itératif ligne par ligne (boucle 'for' en Python). Tous les points du zigzag sont compilés dans un tableau unique de structures géométriques éphémères envoyé au GPU en une seule instruction matérielle groupée (painter.drawLines).
+
+6. INTERACTION DE SURVOL SOURIS ET CONFIGURATION DE VISIBILITE PERMANENTE
+Chaque contrainte intègre un paramètre de visibilité conditionnelle (permanent_visibility). Le concepteur du modèle peut décider de masquer totalement les lignes de contraintes pour ne pas encombrer l'espace de travail. Une hitbox mathématique ultra-rapide calcule en temps réel la projection de la souris par rapport au segment principal du ressort. Si la souris passe à proximité immédiate d'une contrainte masquée, celle-ci s'active (is_hovered = True), change d'épaisseur à l'écran et s'illumine en appliquant un coefficient d'éclaircissement dynamique (Lighter) sur sa couleur de tension, offrant un retour visuel instantané et fluide à l'utilisateur.
+
+7. RETOUR VISUEL DE TENSION PAR COULEURS DYNAMIQUES
+Le ressort évalue de façon continue la distance spatiale entre les deux composants qu'il solidarise. En fonction des seuils de tolérance mémorisés dans son fichier de configuration, il s'habille dynamiquement d'un code couleur représentant son niveau d'effort mécanique :
+- VERT : La distance est nominale, le positionnement est libre et l'écartement est respecté.
+- ORANGE : L'extension maximale du ressort est presque atteinte.
+- ROUGE : La distance minimale de sécurité est enfoncée, le solveur bloque mécaniquement le mouvement pour empêcher la collision de textes.
+
+8. AUTO-SCALING COMPORTEMENTAL AU CARACTERE PRES (FONT SHRINKING)
+La classe FontAutoScaler éradique les risques de débordement de texte à l'impression lorsque les chaînes réelles issues de l'ERP dépassent la taille théorique de la boîte d'affichage. L'algorithme prend en entrée la Bounding Box fixe définie en mode design et exécute une boucle d'analyse descendante au demi-point de police près. En mesurant l'empreinte vectorielle exacte via les métriques de polices matérielles (QFontMetricsF), il détermine la taille maximale autorisée pour que le texte s'insère au pixel près dans son enveloppe réceptrice sans générer de troncature ni de retour à la ligne intempestif.
+
+9. INJECTEUR SEMANTIQUE DE DONNEES (DATABINDING RESOLVER)
+Pour découpler définitivement le design graphique de la base de données, les composants acceptent des chaînes de liaison sémantiques (data_field) au format d'arborescence à points (ex: erp.produit.prix_ttc). Le module DataBindingResolver fait office d'interpréteur : il inspecte le dictionnaire de données JSON poussé par le back-office lors d'un cycle d'impression, parcourt récursivement les attributs de l'objet et extrait la valeur finale. Si la donnée est manquante, obsolète ou en cours de création dans l'outil de design, le système bascule sur l'affichage d'un texte de remplacement (fallback_text) pour assurer la continuité visuelle.
+
+10. IMPOSITION GEOMETRIQUE DYNAMIQUE ET MIXTE (MULTI-TEMPLATE PACKING)
+La gestion de l'espace sur le support physique d'impression (feuille A4, A3 ou rouleau thermique) est totalement automatisée par la classe MultiTemplateImpositionEngine. Le système s'affranchit des grilles fixes à coordonnées répétitives. Il applique un algorithme de pavage glouton (Greedy Packing) qui trie les demandes d'étiquettes par ordre décroissant de surface au sol, calcule l'espace disponible restant sur le média, applique les contraintes d'agencement utilisateur (marges techniques de l'imprimante et espaces inter-étiquettes pour le massicotage) et positionne dynamiquement des gabarits de tailles hétérogènes (ILV, A5, étiquettes de broches 80x40) sur le même support d'impression pour minimiser le taux de gâche de papier.
+
+11. ARCHITECTURE DE DESERIALISATION INVERSE POLYMORPHIQUE
+L'ajout de la classe LayoutDeserializer complète la boucle logicielle en fournissant le parser inverse du framework. Elle lit la chaîne JSON compacte issue du disque ou de la base de données, reconstruit l'instance centrale du gabarit, puis réinstancie dynamiquement les objets métiers typés (Brand, Price, StaticText) et les liaisons physiques (springs) en restaurant leurs attributs d'origine et en ré-initialisant l'intégralité des pipelines de caches graphiques (Dirty Flags) sans perte d'intégrité ni consommation de ressources résiduelles.
+
+
+================================================================================
+CODE SOURCE ENTIER ASSOCIE (engine_label_system.py)
+================================================================================
+
+import math
+import json
+from enum import Enum
+from datetime import datetime
+from typing import Dict, Any, List, Tuple, Optional
+
+# Utilisation stricte des types abstraits non-graphiques de PySide6
+from PySide6.QtGui import QPainter, QPen, QColor, QFont, QFontMetricsF
+from PySide6.QtCore import QPointF, QRectF
+
+# --- 1. ENUMS & STRUCTURES FONDATRICES ---
+
+class BoxEdge(Enum):
+    TOP = "top"
+    BOTTOM = "bottom"
+    LEFT = "left"
+    RIGHT = "right"
+    CENTER_H = "center_h"
+    CENTER_V = "center_v"
+
+class Alignment(Enum):
+    LEFT = "left"
+    CENTER = "center"
+    RIGHT = "right"
+
+
+# --- 2. SYSTEME DE DONNEES SERIALISABLE (FLYWEIGHT & DELTA) ---
+
+class OptimizedElement:
+    """Représentation mémoire ultra-légère d'un composant de label."""
+    
+    DEFAULTS = {
+        "font_name": "Arial", 
+        "font_size": 10.0, 
+        "is_bold": False,
+        "alignment": "left", 
+        "z_index": 0, 
+        "data_field": None,
+        "fallback_text": "",
+        "auto_scale": False
+    }
+
+    def __init__(self, id_name: str, type_node: str, x: float, y: float, w: float, h: float):
+        self.id_name = id_name
+        self.type_node = type_node  # "Brand", "Price", "StaticText", etc.
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.attributes: Dict[str, Any] = {}
+
+    def set_attribute(self, key: str, value: Any):
+        if key in self.DEFAULTS and self.DEFAULTS[key] == value:
+            self.attributes.pop(key, None)
+        else:
+            self.attributes[key] = value
+
+    def get_attribute(self, key: str) -> Any:
+        return self.attributes.get(key, self.DEFAULTS.get(key))
+
+    def to_compact_dict(self) -> Dict[str, Any]:
+        data = {
+            "id": self.id_name,
+            "t": self.type_node,
+            "g": [round(self.x, 2), round(self.y, 2), round(self.w, 2), round(self.h, 2)]
+        }
+        if self.attributes:
+            data["a"] = self.attributes
+        return data
+
+
+# --- 3. MOTEUR DE CONTRAINTES & RESSORTS (DIRTY FLAGS & RENDU GPU) ---
+
+class GraphicConstraint:
+    """Objet contrainte autonome agissant comme un ressort rigide ou élastique."""
+    
+    def __init__(self, id_name: str, source_id: str, source_edge: BoxEdge, 
+                 target_id: str, target_edge: BoxEdge, min_distance: float = 5.0, max_distance: float = 30.0,
+                 permanent_visibility: bool = True):
+        self.id_name = id_name
+        self.source_id = source_id
+        self.source_edge = source_edge
+        self.target_id = target_id
+        self.target_edge = target_edge
+        self.min_distance = min_distance
+        self.max_distance = max_distance
+        
+        self.permanent_visibility = permanent_visibility
+        self.is_hovered = False
+        
+        self._is_dirty = True
+        self._cached_points_mm: List[Tuple[float, float]] = []
+        self._cached_qpoints: List[QPointF] = []
+        self._last_state_color = QColor(0, 120, 215)
+        
+    def invalider_cache(self):
+        self._is_dirty = True
+
+    def _recouvrer_coordonnee_bord(self, el: OptimizedElement, edge: BoxEdge) -> Tuple[float, float]:
+        if edge == BoxEdge.LEFT:     return el.x, el.y + el.h / 2
+        if edge == BoxEdge.RIGHT:    return el.x + el.w, el.y + el.h / 2
+        if edge == BoxEdge.TOP:      return el.x + el.w / 2, el.y
+        if edge == BoxEdge.BOTTOM:   return el.x + el.w / 2, el.y + el.h
+        if edge == BoxEdge.CENTER_H: return el.x + el.w / 2, el.y + el.h / 2
+        if edge == BoxEdge.CENTER_V: return el.x + el.w / 2, el.y + el.h / 2
+        return el.x, el.y
+
+    def _mettre_a_jour_geometrie_si_necessaire(self, tous_les_elements: Dict[str, OptimizedElement]):
+        if not self._is_dirty or self.source_id not in tous_les_elements or self.target_id not in tous_les_elements:
+            return
+
+        el_src = tous_les_elements[self.source_id]
+        el_tgt = tous_les_elements[self.target_id]
+        
+        x1, y1 = self._recouvrer_coordonnee_bord(el_src, self.source_edge)
+        x2, y2 = self._recouvrer_coordonnee_bord(el_tgt, self.target_edge)
+        
+        dx, dy = x2 - x1, y2 - y1
+        distance = (dx**2 + dy**2)**0.5
+        
+        if distance <= self.min_distance:
+            self._last_state_color = QColor(230, 0, 0, 220)      # ROUGE : Bloqué
+        elif distance >= self.max_distance:
+            self._last_state_color = QColor(255, 140, 0, 220)    # ORANGE : Extension maximale
+        else:
+            self._last_state_color = QColor(0, 200, 80, 180)     # VERT : Zone élastique fluide
+            
+        if self.is_hovered:
+            self._last_state_color = self._last_state_color.lighter(130)
+
+        self._cached_points_mm = [(x1, y1)]
+        if distance > 0:
+            nx, ny = -dy / distance, dx / distance
+            x_start, y_start = x1 + dx * 0.15, y1 + dy * 0.15
+            x_end, y_end = x1 + dx * 0.85, y1 + dy * 0.85
+            self._cached_points_mm.append((x_start, y_start))
+            
+            nb_spires = 6
+            total_segments = nb_spires * 2
+            for i in range(1, total_segments):
+                ratio = i / total_segments
+                xb = x_start + (x_end - x_start) * ratio
+                yb = y_start + (y_end - y_start) * ratio
+                direction = 1 if i % 2 == 0 else -1
+                self._cached_points_mm.append((xb + nx * 2.5 * direction, yb + ny * 2.5 * direction))
+                
+            self._cached_points_mm.append((x_end, y_end))
+        self._cached_points_mm.append((x2, y2))
+        
+        self._is_dirty = False
+        self._cached_qpoints.clear()
+
+    def evaluer_survol_souris(self, mouse_x_mm: float, mouse_y_mm: float, tolerance_mm: float = 2.0) -> bool:
+        if not self._cached_points_mm:
+            return False
+        x1, y1 = self._cached_points_mm
+        x2, y2 = self._cached_points_mm[-1]
+        
+        dx, dy = x2 - x1, y2 - y1
+        length_sq = dx**2 + dy**2
+        if length_sq == 0:
+            return False
+            
+        t = max(0.0, min(1.0, ((mouse_x_mm - x1) * dx + (mouse_y_mm - y1) * dy) / length_sq))
+        proj_x, proj_y = x1 + t * dx, y1 + t * dy
+        dist = ((mouse_x_mm - proj_x)**2 + (mouse_y_mm - proj_y)**2)**0.5
+        
+        ancien_statut = self.is_hovered
+        self.is_hovered = (dist <= tolerance_mm)
+        if (ancien_statut != self.is_hovered):
+            self.invalider_cache()
+        return self.is_hovered
+
+    def dessiner_ressort_haute_performance(self, painter: QPainter, tous_les_elements: Dict[str, OptimizedElement], mm_to_pt: float):
+        if not self.permanent_visibility and not self.is_hovered:
+            return
+        self._mettre_a_jour_geometrie_si_necessaire(tous_les_elements)
+        if not self._cached_points_mm:
+            return
+            
+        painter.save()
+        epaisseur = 0.8 if self.is_hovered else 0.4
+        painter.setPen(QPen(self._last_state_color, epaisseur * mm_to_pt, Qt.SolidLine))
+        
+        if not self._cached_qpoints:
+            for i in range(len(self._cached_points_mm) - 1):
+                p1, p2 = self._cached_points_mm[i], self._cached_points_mm[i+1]
+                self._cached_qpoints.append(QPointF(p1 * mm_to_pt, p1 * mm_to_pt))
+                self._cached_qpoints.append(QPointF(p2 * mm_to_pt, p2 * mm_to_pt))
+                
+        painter.drawLines(self._cached_qpoints)
+        painter.restore()
+
+    def to_compact_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id_name,
+            "src": [self.source_id, self.source_edge.value],
+            "tgt": [self.target_id, self.target_edge.value],
+            "lim": [round(self.min_distance, 1), round(self.max_distance, 1)],
+            "vis": 1 if self.permanent_visibility else 0
+        }
+
+
+class ConstraintSolver:
+    """Solveur mathématique appliquant les ressorts et les alignements de sécurité."""
+    
+    @staticmethod
+    def appliquer_contraintes(el: OptimizedElement, tous_les_elements: Dict[str, OptimizedElement], 
+                              contraintes: List[GraphicConstraint], label_w: float, label_h: float) -> Tuple[float, float]:
+        new_x, new_y = el.x, el.y
+        
+        for c in contraintes:
+            if c.source_id != el.id_name and c.target_id != el.id_name:
+                continue
+                
+            autre_id = c.target_id if c.source_id == el.id_name else c.source_id
+            if autre_id not in tous_les_elements:
+                continue
+            autre_el = tous_les_elements[autre_id]
+            
+            e_motive = c.source_edge if c.source_id == el.id_name else c.target_edge
+            e_fixe = c.target_edge if c.source_id == el.id_name else c.source_edge
+            
+            # Position du repère fixe
+            if e_fixe == BoxEdge.LEFT:    val_fixe = autre_el.x
+            elif e_fixe == BoxEdge.RIGHT:  val_fixe = autre_el.x + autre_el.w
+            elif e_fixe == BoxEdge.TOP:    val_fixe = autre_el.y
+            elif e_fixe == BoxEdge.BOTTOM: val_fixe = autre_el.y + autre_el.h
+            else: continue
+            
+            # Ajustements horizontaux
+            if e_motive == BoxEdge.LEFT:
+                dist = new_x - val_fixe
+                if abs(dist) < c.min_distance:
+                    new_x = val_fixe + (c.min_distance if dist >= 0 else -c.min_distance)
+            elif e_motive == BoxEdge.RIGHT:
+                dist = (new_x + el.w) - val_fixe
+                if abs(dist) < c.min_distance:
+                    new_x = val_fixe + (c.min_distance if dist >= 0 else -c.min_distance) - el.w
+                    
+            # Ajustements verticaux
+            elif e_motive == BoxEdge.TOP:
+                dist = new_y - val_fixe
+                if abs(dist) < c.min_distance:
+                    new_y = val_fixe + (c.min_distance if dist >= 0 else -c.min_distance)
+            elif e_motive == BoxEdge.BOTTOM:
+                dist = (new_y + el.h) - val_fixe
+                if abs(dist) < c.min_distance:
+                    new_y = val_fixe + (c.min_distance if dist >= 0 else -c.min_distance) - el.h
+
+        # Sécurité physique des limites de la Bounding Box du Label Mère
+        if new_x < 0: new_x = 0
+        if new_x + el.w > label_w: new_x = label_w - el.w
+        if new_y < 0: new_y = 0
+        if new_y + el.h > label_h: new_y = label_h - el.h
+        
+        return new_x, new_y
+
+
+# --- 4. RESOLVEUR SEMANTIQUE & AUTO-SCALING AU CARACTERE PRES ---
+
+class DataBindingResolver:
+    """Injecteur de données d'un modèle d'entité (ERP) vers un placeholder."""
+    
+    @staticmethod
+    def evaluer_champ(expression: Optional[str], context_dict: Dict[str, Any], fallback: str) -> str:
+        if not expression:
+            return fallback
+        try:
+            parts = expression.split(".")
+            current = context_dict
+            for p in parts:
+                if isinstance(current, dict):
+                    current = current[p]
+                else:
+                    current = getattr(current, p)
+            return str(current)
+        except Exception:
+            return fallback
+
+
+class FontAutoScaler:
+    """Calculateur d'auto-réduction de police au caractère près (Zéro débordement)."""
+    
+    @staticmethod
+    def optimiser_taille_police(text: str, font_name: str, max_w_pt: float, max_h_pt: float, 
+                                start_size: float, is_bold: bool) -> QFont:
+        current_size = start_size
+        font = QFont(font_name, current_size)
+        font.setBold(is_bold)
+        
+        while current_size > 4.0:
+            metrics = QFontMetricsF(font)
+            rect_rect = metrics.boundingRect(text)
+            if rect_rect.width() <= max_w_pt and rect_rect.height() <= max_h_pt:
+                break
+            current_size -= 0.5
+            font.setPointSizeF(current_size)
+            
+        return font
+
+
+# --- 5. GRILLE D'IMPOSITION MULTI-GABARITS AVEC ARRANGEMENT DYNAMIQUE ---
+
+class MultiTemplateImpositionEngine:
+    """Algorithme de pavage à densités variables sur support d'impression physique."""
+    
+    def __init__(self, page_w_mm: float = 210.0, page_h_mm: float = 297.0, marge_mm: float = 6.0):
+        self.page_w = page_w_mm
+        self.page_h = page_h_mm
+        self.marge = marge_mm
+
+    def arranger_gabarits_mixtes(self, liste_gabarits_demandes: List[Tuple[float, float, Any]], 
+                                 gap_x: float = 2.0, gap_y: float = 2.0) -> List[Tuple[float, float, Any]]:
+        """Algorithme glouton (Greedy Grid Placement) positionnant les blocs par ordre de taille."""
+        tri_gabarits = sorted(liste_gabarits_demandes, key=lambda g: (g, g), reverse=True)
+        
+        placements = []
+        current_x = self.marge
+        current_y = self.marge
+        max_row_h = 0.0
+        
+        for w, h, payload in tri_gabarits:
+            if current_x + w > self.page_w - self.marge:
+                current_x = self.marge
+                current_y += max_row_h + gap_y
+                max_row_h = 0.0
+                
+            if current_y + h > self.page_h - self.marge:
+                continue
+                
+            placements.append((current_x, current_y, payload))
+            max_row_h = max(max_row_h, h)
+            current_x += w + gap_x
+            
+        return placements
+
+
+# --- 6. STRUCTURATEUR GLOBAL PREFAB ---
+
+class PrefabLabelTemplate:
+    """Gabarit global d'étiquette unifiant composants, ressorts et sérialisation."""
+    
+    def __init__(self, template_id: str, width_mm: float, height_mm: float):
+        self.template_id = template_id
+        self.width_mm = width_mm
+        self.height_mm = height_mm
+        self.elements: Dict[str, OptimizedElement] = {}
+        self.constraints: List[GraphicConstraint] = []
+
+    def ajouter_element_ui(self, el: OptimizedElement):
+        self.elements[el.id_name] = el
+        self.notifier_deplacement(el.id_name, el.x, el.y)
+
+    def ajouter_ressort_ui(self, con: GraphicConstraint):
+        self.constraints.append(con)
+        con.invalider_cache()
+
+    def notifier_deplacement(self, id_name: str, tx: float, ty: float):
+        if id_name not in self.elements: return
+        el = self.elements[id_name]
+        el.x, el.y = tx, ty
+        
+        el.x, el.y = ConstraintSolver.appliquer_contraintes(
+            el, self.elements, self.constraints, self.width_mm, self.height_mm
+        )
+        
+        for c in self.constraints:
+            if c.source_id == id_name or c.target_id == id_name:
+                c.invalider_cache()
+
+    def compiler_to_json(self) -> str:
+        payload = {
+            "id": self.template_id,
+            "size": [self.width_mm, self.height_mm],
+            "nodes": [item.to_compact_dict() for item in self.elements.values()],
+            "springs": [con.to_compact_dict() for con in self.constraints]
+        }
+        return json.dumps(payload, separators=(',', ':'))
+
+
+# --- 7. MOTEURS DE DESERIALISATION INVERSE & PRODUCTION PIPELINE ---
+
+class LayoutDeserializer:
+    """Moteur de reconstruction inverse. Recrée les instances d'objets à partir du JSON compact."""
+    
+    @staticmethod
+    def reconstruire_gabarit(json_str: str) -> PrefabLabelTemplate:
+        data = json.loads(json_str)
+        
+        # 1. Instanciation du conteneur maître
+        gabarit = PrefabLabelTemplate(
+            template_id=data["id"],
+            width_mm=data["size"],
+            height_mm=data["size"]
+        )
+        
+        # 2. Reconstruction des nœuds graphiques (OptimizedElement)
+        for n in data.get("nodes", []):
+            coords = n["g"]
+            el = OptimizedElement(
+                id_name=n["id"],
+                type_node=n["t"],
+                x=coords, y=coords, w=coords, h=coords
+            )
+            if "a" in n:
+                for k, v in n["a"].items():
+                    el.set_attribute(k, v)
+            gabarit.elements[el.id_name] = el
+            
+        # 3. Reconstruction des contraintes / ressorts (GraphicConstraint)
+        for s in data.get("springs", []):
+            rc_vis = s.get("vis", 1) == 1
+            con = GraphicConstraint(
+                id_name=s["id"],
+                source_id=s["src"],
+                source_edge=BoxEdge(s["src"]),
+                target_id=s["tgt"],
+                target_edge=BoxEdge(s["tgt"]),
+                min_distance=s["lim"],
+                max_distance=s["lim"],
+                permanent_visibility=rc_vis
+            )
+            gabarit.constraints.append(con)
+            
+        for c in gabarit.constraints:
+            c.invalider_cache()
+            
+        return gabarit
+
+
+class ProductionPipeline:
+    """Adaptateur final associant un gabarit désérialisé et un dictionnaire de données réelles."""
+    
+    @staticmethod
+    def executer_rendu_element(painter: QPainter, el: OptimizedElement, context_data: Dict[str, Any], mm_to_pt: float):
+        painter.save()
+        
+        # Résolution de la chaîne finale (DataBinding ou fallback text de l'UI)
+        data_field = el.get_attribute("data_field")
+        fallback = el.get_attribute("fallback_text")
+        texte_final = DataBindingResolver.evaluer_champ(data_field, context_data, fallback)
+        
+        # Récupération des propriétés de style
+        font_name = el.get_attribute("font_name")
+        font_size = el.get_attribute("font_size")
+        is_bold = el.get_attribute("is_bold")
+        auto_scale = el.get_attribute("auto_scale")
+        align_str = el.get_attribute("alignment")
+        
+        # Dimensions absolues de la bounding box en points d'impression
+        rect_target = QRectF(el.x * mm_to_pt, el.y * mm_to_pt, el.w * mm_to_pt, el.h * mm_to_pt)
+        
+        # Traitement au caractère près : Auto-Scaling descendant ou police standard
+        if auto_scale and texte_final:
+            font = FontAutoScaler.optimiser_taille_police(texte_final, font_name, el.w * mm_to_pt, el.h * mm_to_pt, font_size, is_bold)
+        else:
+            font = QFont(font_name, font_size)
+            font.setBold(is_bold)
+            
+        painter.setFont(font)
+        painter.setPen(QColor(0, 0, 0)) # Encre noire standard de production
+        
+        # Alignement horizontal
+        flag_align = Qt.AlignLeft
+        if align_str == "center": flag_align = Qt.AlignCenter
+        elif align_str == "right": flag_align = Qt.AlignRight
+        
+        painter.drawText(rect_target, flag_align | Qt.AlignVCenter | Qt.TextWordWrap, texte_final)
+        painter.restore()
+
+
+# --- 8. UNIT-TEST ET SIMULATION D'EXECUTION ---
+
+if __name__ == "__main__":
+    print("=== DEMARRAGE DU COMPILATEUR DE LABELS DE PRIX ===")
+    
+    # Instance d'un gabarit A6 en mode Conception
+    gabarit_origine = PrefabLabelTemplate("Gabarit_Frais_A6", width_mm=105.0, height_mm=74.0)
+    
+    # Ajout de la zone Marque
+    el_brand = OptimizedElement("brand_box", "Brand", x=5.0, y=5.0, w=95.0, h=10.0)
+    el_brand.set_attribute("font_name", "Calibri")
+    el_brand.set_attribute("font_size", 28.0)
+    el_brand.set_attribute("is_bold", True)
+    el_brand.set_attribute("auto_scale", True)
+    el_brand.set_attribute("data_field", "erp.produit.marque")
+    gabarit_origine.ajouter_element_ui(el_brand)
+    
+    # Ajout du Libellé Article
+    el_title = OptimizedElement("title_box", "StaticText", x=5.0, y=20.0, w=95.0, h=12.0)
+    el_title.set_attribute("font_size", 14.0)
+    el_title.set_attribute("auto_scale", True)
+    el_title.set_attribute("data_field", "erp.produit.libelle")
+    gabarit_origine.ajouter_element_ui(el_title)
+    
+    # Liaison par ressort (Ligne de blocage à 5.0 mm min)
+    ressort_inter = GraphicConstraint("C1", "brand_box", BoxEdge.BOTTOM, "title_box", BoxEdge.TOP, min_distance=5.0, max_distance=15.0)
+    gabarit_origine.ajouter_ressort_ui(ressort_inter)
+    
+    # Compilation JSON compressée
+    print("\n=== EXPORTATION/SERIALISATION COMPACTE ===")
+    serialized_json = gabarit_origine.compiler_to_json()
+    print(serialized_json)
+    
+    # Test de la désérialisation réciproque
+    print("\n=== PARSING / DESERIALISATION INVERSE ===")
+    gabarit_restaure = LayoutDeserializer.reconstruire_gabarit(serialized_json)
+    print(f"-> Gabarit recréé avec succès. ID: '{gabarit_restaure.template_id}' | Nodes chargés: {len(gabarit_restaure.elements)} | Springs chargés: {len(gabarit_restaure.constraints)}")

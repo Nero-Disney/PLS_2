@@ -46,6 +46,80 @@ box = TextBox(text="Prix", x=10, y=5, width=50, height=20,
               unit="mm", dpi=300)
 ```
 
+## Modele de design de label
+
+Les donnees metier peuvent etre preparees sans lancer Qt :
+
+```python
+from PLS_2 import BarcodeField, LabelDocument, PriceValue
+
+label = LabelDocument(width=80, height=50, unit="mm", dpi=300)
+label.add(PriceValue(field_id="price", value="12.995", x=40, y=20,
+                     width=30, height=12))
+label.add(BarcodeField(field_id="ean", value="3760123456789",
+                      x=5, y=35, width=50, height=10))
+
+diagnostic = label.validate()
+saved = label.to_json(indent=2)
+restored = LabelDocument.from_json(saved)
+```
+
+## Impression directe
+
+Le meme document peut etre imprime par le dialogue natif ou directement sur
+la cible par defaut :
+
+```python
+from PLS_2 import LabelPrinter
+
+printer = LabelPrinter(label)
+printer.print_with_dialog()  # interface native de choix d'imprimante
+printer.print_direct()       # flux sans dialogue
+printer.export_pdf("etiquette.pdf")
+```
+
+Le module [printing.py](printing.py) reste independant des widgets d'edition.
+Il configure la taille papier a partir des dimensions physiques du document et
+utilise le meme repere pour l'aperçu PDF et l'impression.
+
+Les responsabilites du domaine sont exposees par modules :
+
+- [label_validation.py](label_validation.py) : erreurs, avertissements et diagnostics ;
+- [label_styles.py](label_styles.py) : themes et styles nommes ;
+- [label_elements.py](label_elements.py) : elements metier headless ;
+- [label_document.py](label_document.py) : document et template imprimable ;
+- [printing.py](printing.py) : impression native, directe et PDF.
+
+`label_design.py` reste la facade de compatibilite historique pour les imports
+existants.
+
+Les validations distinguent les erreurs bloquantes des avertissements, par
+exemple une valeur obligatoire absente, un champ hors etiquette ou deux champs
+qui se chevauchent. `PriceValue` conserve la valeur numerique brute et genere
+le texte localise uniquement pour l'affichage.
+
+Les champs texte Qt (`Price`, `Brand`, `Description`, `PartNo`) restent utiles
+pour l'edition interactive. Les modeles `LabelFieldModel`, `PriceValue` et
+`BarcodeField` sont destines a la generation en lot, a la validation et a la
+future sortie PDF/SVG sans widget.
+
+Le modele produit couvre aussi les donnees reglementaires et commerciales :
+`commercial_name`, `legal_name`, `brand`, `origin`, `variety`, `calibre`,
+`category`, `ingredients`, `allergens`, `sanitary_stamp`, quantite nette et
+unite de reference. `PriceData` calcule le prix a l'unite de mesure, tandis
+que `PromotionData` gere l'avantage fidelite, la remise et la mention de
+shrinkflation.
+
+Les parametres d'impression sont portes par `PrintSpec` : gabarit, support,
+orientation, mode couleur, DPI, fond perdu, marge de securite, planche,
+nombre de copies, ordre de tri et statut (`to_print`, `printed`, `error`).
+Les metadonnees ERP (`ERPMetadata`) conservent SKU, rayon, emplacement,
+fournisseur et dates de validite.
+
+Les elements graphiques sont distincts des textboxes : `BarcodeElement`,
+`LogoElement`, `PictogramElement` et `GraphicElement` representent les assets,
+QR codes, labels officiels, Nutri-Score/Eco-Score et fonds promotionnels.
+
 Des champs metier sont egalement disponibles pour les templates d'etiquettes :
 
 ```python

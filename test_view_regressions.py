@@ -223,3 +223,128 @@ def test_label_field_subclasses_keep_textbox_behavior_and_domain_defaults():
     assert description.obj.sizing_mode == SizingMode.FREE_RESIZE
     assert part_number.text == "AC-2048"
     assert len(price._handle_rects()) == 9
+
+
+def test_label_domain_supports_special_fields_and_json_round_trip():
+    try:
+        from .label_design import BarcodeField, LabelDocument, PriceValue
+        from .label_fields import Discount, UnitPrice, Weight
+    except ImportError:
+        from label_design import BarcodeField, LabelDocument, PriceValue
+        from label_fields import Discount, UnitPrice, Weight
+
+    assert PriceValue(field_id="price", value="12,995").display_value() == "13,00 €"
+    assert Discount(20).text == "20%"
+    assert Weight(1.25, unit="kg").text == "1.250 kg"
+    assert "/ kg" in UnitPrice(3.5, unit="kg").text
+
+    document = LabelDocument(80, 50)
+    document.add(PriceValue(field_id="price", value="12.99"))
+    document.add(BarcodeField(field_id="barcode", value="123456"))
+    restored = LabelDocument.from_json(document.to_json())
+    assert [item.field_id for item in restored.fields] == ["price", "barcode"]
+    assert restored.validate().valid
+
+
+def test_label_document_checks_bounds_and_overlaps():
+    try:
+        from .label_design import LabelDocument, LabelFieldModel, Severity
+    except ImportError:
+        from label_design import LabelDocument, LabelFieldModel, Severity
+
+    document = LabelDocument(80, 50)
+    document.add(LabelFieldModel(field_id="brand", value="Acme",
+                                 x=5, y=5, width=30, height=10))
+    document.add(LabelFieldModel(field_id="price", value="10",
+                                 x=20, y=8, width=30, height=10))
+    result = document.validate()
+    assert result.valid
+    assert any(issue.code == "overlap" and
+               issue.severity == Severity.WARNING for issue in result.issues)
+
+
+def test_printing_service_exports_a_label_to_pdf(tmp_path):
+    try:
+        from .label_design import LabelDocument, PriceValue
+        from .printing import LabelPrinter
+    except ImportError:
+        from label_design import LabelDocument, PriceValue
+        from printing import LabelPrinter
+
+    document = LabelDocument(50, 30)
+    document.add(PriceValue(field_id="price", value="9.99",
+                            x=5, y=5, width=20, height=10))
+    output = tmp_path / "label.pdf"
+    assert LabelPrinter(document).export_pdf(str(output)) == str(output)
+    assert output.exists() and output.stat().st_size > 0
+
+
+def test_label_architecture_modules_are_importable():
+    try:
+        from .label_document import LabelDocument as DocumentModule
+        from .label_elements import PriceField as PriceModule
+        from .label_styles import LabelTheme as ThemeModule
+        from .label_validation import ValidationResult as ValidationModule
+    except ImportError:
+        from label_document import LabelDocument as DocumentModule
+        from label_elements import PriceField as PriceModule
+        from label_styles import LabelTheme as ThemeModule
+        from label_validation import ValidationResult as ValidationModule
+
+    assert DocumentModule is not None
+    assert PriceModule is not None
+    assert ThemeModule is not None
+    assert ValidationModule is not None
+
+
+def test_prefab_json_round_trip_and_databinding_are_supported():
+    from PLS_2 import DataBindingResolver, GraphicConstraint, LayoutDeserializer, MultiTemplateImpositionEngine, OptimizedElement, PrefabLabelTemplate
+    from PLS_2 import BoxEdge
+
+    template = PrefabLabelTemplate("T-01", 105.0, 74.0)
+    brand = OptimizedElement("brand_box", "Brand", 5.0, 5.0, 40.0, 10.0)
+    brand.set_attribute("data_field", "erp.produit.marque")
+    template.add_element(brand)
+
+    title = OptimizedElement("title_box", "StaticText", 5.0, 18.0, 50.0, 12.0)
+    title.set_attribute("fallback_text", "Produit")
+    template.add_element(title)
+    template.add_constraint(GraphicConstraint("c1", "brand_box", BoxEdge.BOTTOM,
+                                             "title_box", BoxEdge.TOP,
+                                             min_distance=3.0, max_distance=12.0))
+
+    payload = template.to_compact_json()
+    restored = LayoutDeserializer.rebuild_template(payload)
+    assert restored.template_id == "T-01"
+    assert set(restored.elements) == {"brand_box", "title_box"}
+    assert len(restored.constraints) == 1
+    assert DataBindingResolver.resolve("erp.produit.marque", {"erp": {"produit": {"marque": "Acme"}}}, "Fallback") == "Acme"
+    assert DataBindingResolver.resolve("erp.produit.unknown", {"erp": {"produit": {}}}, "Fallback") == "Fallback"
+
+    engine = MultiTemplateImpositionEngine(page_w_mm=100.0, page_h_mm=100.0)
+    placements = engine.arrange_mixed_templates([(40.0, 20.0, "A"), (20.0, 10.0, "B")])
+    assert placements and placements[0][2] == "A"
+
+
+def test_product_pum_print_spec_graphics_and_erp_data():
+    from decimal import Decimal
+    from datetime import datetime, timedelta
+    from PLS_2 import (BarcodeElement, ERPMetadata, LabelDocument, PriceData,
+                       PrintSpec, PrintStatus, ProductData, PromotionData)
+
+    price = PriceData(sale_price=Decimal("5.00"))
+    assert price.unit_price(Decimal("0.25"), "kg") == Decimal("20.00")
+    product = ProductData(sku="SKU-1", commercial_name="Pommes",
+                          net_quantity=Decimal("0.25"), net_unit="kg")
+    promotion = PromotionData(advantage_text="+20% Credités",
+                              discount_percent=Decimal("20"))
+    barcode = BarcodeElement(field_id="ean", value="3760123456789",
+                             x=2, y=2, width=40, height=12)
+    erp = ERPMetadata(sku="SKU-1", print_status=PrintStatus.TO_PRINT)
+    document = LabelDocument(80, 40, product=product, price_data=price,
+                             promotion=promotion, print_spec=PrintSpec(),
+                             system_data={"erp": erp.to_dict()})
+    document.add_graphic(barcode)
+    payload = document.to_json()
+    assert "Pommes" in payload and "EAN13" in payload
+    assert document.validate().valid
