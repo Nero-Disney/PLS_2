@@ -13,7 +13,10 @@ from PySide6.QtGui import (
     QTextCharFormat, QColor, QFontMetricsF,
 )
 
-from .model import TextObject, Paragraph, VAlign, Overflow
+try:
+    from .model import TextObject, Paragraph, VAlign, Overflow
+except ImportError:  # pragma: no cover - support script execution
+    from model import TextObject, Paragraph, VAlign, Overflow
 
 
 def _qfont_default(scale: float) -> QFont:

@@ -10,9 +10,14 @@ from PySide6.QtCore import Qt, QRectF, QPointF, QTimer
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush
 from PySide6.QtWidgets import QWidget
 
-from .model import TextObject
-from .cursor import TextCursor, Position
-from .layout_engine import LayoutEngine
+try:
+    from .model import TextObject, Overflow, VAlign
+    from .cursor import TextCursor, Position
+    from .layout_engine import LayoutEngine
+except ImportError:  # pragma: no cover - support script execution
+    from model import TextObject, Overflow, VAlign
+    from cursor import TextCursor, Position
+    from layout_engine import LayoutEngine
 
 
 class TextObjectView(QWidget):
@@ -39,6 +44,25 @@ class TextObjectView(QWidget):
         self._layout_result = self.engine.layout(self.obj)
         self.update()
 
+    def _vertical_offset(self, result, content):
+        """Retourne le décalage vertical à appliquer au rendu.
+
+        En mode AUTOFIT_SHRINK, le moteur a déjà ajusté la taille du texte pour
+        qu'il tienne dans la boîte ; on ne doit pas appliquer un second
+        centrage/décalage vertical dans ce cas.
+        """
+        if self.obj.overflow == Overflow.AUTOFIT_SHRINK:
+            return 0.0
+        if self.obj.valign == VAlign.MIDDLE:
+            return max(0.0, (content.height() - result.total_height) / 2)
+        if self.obj.valign == VAlign.BOTTOM:
+            return max(0.0, content.height() - result.total_height)
+        return 0.0
+
+    def closeEvent(self, event):
+        self._timer.stop()
+        super().closeEvent(event)
+
     # ---------- peinture ----------
 
     def paintEvent(self, event):
@@ -51,14 +75,7 @@ class TextObjectView(QWidget):
 
         content = self.obj.content_rect()
         result = self._layout_result
-
-        v_offset = 0.0
-        if self.obj.overflow.name != "AUTOFIT_SHRINK" or True:
-            from .model import VAlign
-            if self.obj.valign == VAlign.MIDDLE:
-                v_offset = max(0.0, (content.height() - result.total_height) / 2)
-            elif self.obj.valign == VAlign.BOTTOM:
-                v_offset = max(0.0, content.height() - result.total_height)
+        v_offset = self._vertical_offset(result, content)
 
         painter.save()
         painter.translate(content.left(), content.top() + v_offset)

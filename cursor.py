@@ -12,7 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from .model import TextObject, Paragraph, CharFormat, ParagraphFormat
+try:
+    from .model import TextObject, Paragraph, CharFormat, ParagraphFormat
+except ImportError:  # pragma: no cover - support script execution
+    from model import TextObject, Paragraph, CharFormat, ParagraphFormat
 
 
 @dataclass
