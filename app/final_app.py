@@ -1,23 +1,31 @@
 """Application finale de validation de la textbox PLS_2.
 
 Ce module est une couche d'exécution uniquement : l'implémentation de la
-textbox reste dans model.py, cursor.py, layout_engine.py et view.py.
+textbox vit dans le package editor/.
 """
 
 from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT.parent) not in sys.path:
+    sys.path.insert(0, str(ROOT.parent))
+
 from PySide6.QtWidgets import QApplication
 
 try:
-    from .textbox import TextBox
+    from PLS_2.editor.textbox import TextBox
 except ImportError:  # pragma: no cover - support script execution
-    from textbox import TextBox
+    try:
+        from editor.textbox import TextBox
+    except ImportError:  # pragma: no cover
+        from ..editor.textbox import TextBox
 
 
 DEFAULT_WIDTH = 420

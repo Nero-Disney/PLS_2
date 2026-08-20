@@ -10,18 +10,14 @@ from PySide6.QtCore import QRectF, QPointF, Qt
 from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 
-try:
-    from .model import (Overflow, SizingMode, TextObject, VAlign, Paragraph,
-                        CharFormat)
-    from .view import TextObjectView
-    from .layout_engine import LayoutEngine
-    from .cursor import TextCursor, Position
-except ImportError:  # pragma: no cover - support direct test execution
-    from model import (Overflow, SizingMode, TextObject, VAlign, Paragraph,
-                       CharFormat)
-    from view import TextObjectView
-    from layout_engine import LayoutEngine
-    from cursor import TextCursor, Position
+from PLS_2 import (BoxEdge, DataBindingResolver, GraphicConstraint,
+                   LayoutDeserializer, MultiTemplateImpositionEngine,
+                   OptimizedElement, PrefabLabelTemplate)
+from PLS_2.editor.cursor import Position, TextCursor
+from PLS_2.editor.layout_engine import LayoutEngine
+from PLS_2.editor.model import (Overflow, SizingMode, TextObject, VAlign, Paragraph,
+                               CharFormat)
+from PLS_2.editor.view import TextObjectView
 
 
 app = QApplication.instance() or QApplication([])
@@ -37,9 +33,7 @@ def test_vertical_offset_respects_autofit_shrink():
 
 
 def test_package_exports_public_api():
-    package_root = Path(__file__).resolve().parent
-    sys.path.insert(0, str(package_root.parent))
-    pkg = importlib.import_module(package_root.name)
+    pkg = importlib.import_module("PLS_2")
 
     assert hasattr(pkg, "TextObjectView")
     assert "TextObjectView" in getattr(pkg, "__all__", [])
@@ -115,10 +109,7 @@ def test_selection_paints_without_qt_cursor_coordinate_errors():
 
 
 def test_textbox_sizing_modes_and_placeholder():
-    try:
-        from .textbox import TextBox
-    except ImportError:
-        from textbox import TextBox
+    from PLS_2.editor.textbox import TextBox
 
     auto = TextBox(text="texte initial", width=420, height=220)
     assert auto.model.sizing_mode == SizingMode.AUTO_FIT_CONTENT
@@ -179,10 +170,7 @@ def test_format_read_is_not_an_undo_edit():
 
 
 def test_auto_fit_uses_character_format_metrics():
-    try:
-        from .textbox import TextBox
-    except ImportError:
-        from textbox import TextBox
+    from PLS_2.editor.textbox import TextBox
     large = Paragraph("Large", default_format=CharFormat(font_size=48.0))
     box = TextBox(paragraphs=[large], width=100, height=40)
 
@@ -191,12 +179,8 @@ def test_auto_fit_uses_character_format_metrics():
 
 
 def test_physical_units_are_converted_with_explicit_dpi():
-    try:
-        from .textbox import TextBox
-        from .units import Unit, from_pixels, to_pixels
-    except ImportError:
-        from textbox import TextBox
-        from units import Unit, from_pixels, to_pixels
+    from PLS_2.editor.textbox import TextBox
+    from PLS_2.editor.units import Unit, from_pixels, to_pixels
 
     assert abs(to_pixels(25.4, Unit.MILLIMETER, 300) - 300.0) < 0.001
     assert abs(from_pixels(300, Unit.MILLIMETER, 300) - 25.4) < 0.001
@@ -207,10 +191,7 @@ def test_physical_units_are_converted_with_explicit_dpi():
 
 
 def test_label_field_subclasses_keep_textbox_behavior_and_domain_defaults():
-    try:
-        from .label_fields import BRAND, DESCRIPTION, PARTNO, PRICE
-    except ImportError:
-        from label_fields import BRAND, DESCRIPTION, PARTNO, PRICE
+    from PLS_2.fields.label_fields import BRAND, DESCRIPTION, PARTNO, PRICE
 
     brand = BRAND("Acme")
     price = PRICE("12,995", currency="EUR", decimals=2)
@@ -226,12 +207,8 @@ def test_label_field_subclasses_keep_textbox_behavior_and_domain_defaults():
 
 
 def test_label_domain_supports_special_fields_and_json_round_trip():
-    try:
-        from .label_design import BarcodeField, LabelDocument, PriceValue
-        from .label_fields import Discount, UnitPrice, Weight
-    except ImportError:
-        from label_design import BarcodeField, LabelDocument, PriceValue
-        from label_fields import Discount, UnitPrice, Weight
+    from PLS_2.core.label_design import BarcodeField, LabelDocument, PriceValue
+    from PLS_2.fields.label_fields import Discount, UnitPrice, Weight
 
     assert PriceValue(field_id="price", value="12,995").display_value() == "13,00 €"
     assert Discount(20).text == "20%"
@@ -247,10 +224,7 @@ def test_label_domain_supports_special_fields_and_json_round_trip():
 
 
 def test_label_document_checks_bounds_and_overlaps():
-    try:
-        from .label_design import LabelDocument, LabelFieldModel, Severity
-    except ImportError:
-        from label_design import LabelDocument, LabelFieldModel, Severity
+    from PLS_2.core.label_design import LabelDocument, LabelFieldModel, Severity
 
     document = LabelDocument(80, 50)
     document.add(LabelFieldModel(field_id="brand", value="Acme",
@@ -264,12 +238,8 @@ def test_label_document_checks_bounds_and_overlaps():
 
 
 def test_printing_service_exports_a_label_to_pdf(tmp_path):
-    try:
-        from .label_design import LabelDocument, PriceValue
-        from .printing import LabelPrinter
-    except ImportError:
-        from label_design import LabelDocument, PriceValue
-        from printing import LabelPrinter
+    from PLS_2.core.label_design import LabelDocument, PriceValue
+    from PLS_2.print_system.printing import LabelPrinter
 
     document = LabelDocument(50, 30)
     document.add(PriceValue(field_id="price", value="9.99",
@@ -280,16 +250,10 @@ def test_printing_service_exports_a_label_to_pdf(tmp_path):
 
 
 def test_label_architecture_modules_are_importable():
-    try:
-        from .label_document import LabelDocument as DocumentModule
-        from .label_elements import PriceField as PriceModule
-        from .label_styles import LabelTheme as ThemeModule
-        from .label_validation import ValidationResult as ValidationModule
-    except ImportError:
-        from label_document import LabelDocument as DocumentModule
-        from label_elements import PriceField as PriceModule
-        from label_styles import LabelTheme as ThemeModule
-        from label_validation import ValidationResult as ValidationModule
+    from PLS_2.core.label_document import LabelDocument as DocumentModule
+    from PLS_2.core.label_elements import PriceField as PriceModule
+    from PLS_2.core.label_styles import LabelTheme as ThemeModule
+    from PLS_2.core.label_validation import ValidationResult as ValidationModule
 
     assert DocumentModule is not None
     assert PriceModule is not None

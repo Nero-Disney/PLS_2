@@ -10,8 +10,8 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtGui import QPageLayout, QPageSize
 
 try:
-    from .label_design import LabelDocument
-    from .units import Unit, to_pixels
+    from ..core.label_design import LabelDocument
+    from ..editor.units import Unit, to_pixels
 except ImportError:  # pragma: no cover
     from label_design import LabelDocument
     from units import Unit, to_pixels

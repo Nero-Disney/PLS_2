@@ -14,7 +14,7 @@ import re
 from typing import Any, Mapping, Optional
 
 try:
-    from .units import Unit
+    from ..editor.units import Unit
 except ImportError:  # pragma: no cover - support direct module execution
     from units import Unit
 

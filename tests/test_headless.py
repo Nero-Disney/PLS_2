@@ -8,12 +8,9 @@ if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
 from PySide6.QtCore import QRectF
 from PySide6.QtWidgets import QApplication
 
-try:
-    from .model import Paragraph, TextObject
-    from .view import TextObjectView
-except ImportError:  # pragma: no cover - support direct test execution
-    from model import Paragraph, TextObject
-    from view import TextObjectView
+from PLS_2.editor.model import Paragraph, TextObject
+from PLS_2.editor.view import TextObjectView
+from PLS_2.app.final_app import create_demo_object
 
 
 app = QApplication.instance() or QApplication([])
@@ -27,12 +24,7 @@ def test_production_view_constructs_headless():
 
 
 def test_final_app_is_only_a_bootstrap_layer():
-    try:
-        from .final_app import create_demo_object
-    except ImportError:
-        from final_app import create_demo_object
-
     obj = create_demo_object()
     assert obj.text == "Bonjour PLS_2 !"
     assert obj.__class__.__name__ == "TextBox"
-    assert obj.model.__class__.__module__.endswith("model")
+    assert obj.model.__class__.__module__.endswith("editor.model")

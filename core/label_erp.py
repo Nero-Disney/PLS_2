@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional, Any
 
 from .label_design import ValidationResult
-from .label_printing import PrintStatus
+from ..print_system.label_printing import PrintStatus
 
 
 @dataclass

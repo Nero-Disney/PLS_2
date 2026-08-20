@@ -6,9 +6,9 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
 try:
-    from .model import CharFormat, SizingMode
-    from .textbox import TextBox
-    from .label_design import (LabelFieldModel, PriceValue, ValidationResult)
+    from ..editor.model import CharFormat, SizingMode
+    from ..editor.textbox import TextBox
+    from ..core.label_design import (LabelFieldModel, PriceValue, ValidationResult)
 except ImportError:  # pragma: no cover - support script execution
     from model import CharFormat, SizingMode
     from textbox import TextBox

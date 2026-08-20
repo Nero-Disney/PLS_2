@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from .label_design import ValidationResult
-from .units import Unit
+from ..core.label_design import ValidationResult
+from ..editor.units import Unit
 
 
 class Orientation(str, Enum):

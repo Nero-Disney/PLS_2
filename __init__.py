@@ -1,37 +1,37 @@
 """API publique du package PLS_2."""
 
-from .cursor import Position, TextCursor
-from .layout_engine import LayoutEngine
-from .model import (CharFormat, Overflow, Paragraph, ParagraphFormat,
-                    SizingMode, TextObject, VAlign)
-from .view import TextObjectView
-from .textbox import TextBox
-from .units import DocumentSpec, Unit, convert, from_pixels, to_pixels
-from .label_fields import (BRAND, CURRENCY, DESCRIPTION, PARTNO, PRICE,
-                           COMMERCIAL_NAME, INGREDIENTS, LEGAL_NAME,
-                           LOYALTY_ADVANTAGE, ORIGINAL_PRICE, ORIGIN,
-                           SANITARY_STAMP, SHRINKFLATION_NOTICE, UNITPRICE,
-                           VARIETY, WEIGHT, Brand, CommercialName, Currency,
-                           Description, Discount, Ingredients, LabelField,
-                           LegalName, LoyaltyAdvantage, OriginalPrice, Origin,
-                           PartNo, Price, SanitaryStamp, ShrinkflationNotice,
-                           UnitPrice, Variety, Weight)
-from .label_design import (BarcodeField, BarcodeModel, LabelDocument,
-                           LabelFieldModel, LabelTheme, PriceField, PriceValue,
-                           PriceLabel, Severity, TextStyle, ValidationIssue,
-                           ValidationResult)
-from .printing import LabelPrinter, print_document
-from .label_product import PriceData, ProductData, PromotionData, decimal_value
-from .label_printing import (ColorMode, Orientation, PrintSpec, PrintStatus,
-                             PrintSupport)
-from .label_graphics import (BarcodeElement, GraphicElement, GraphicKind,
-                             LogoElement, PictogramElement)
-from .label_erp import ERPMetadata
-from .label_engine import (Alignment, BoxEdge, ConstraintSolver,
-                          DataBindingResolver, FontAutoScaler,
-                          GraphicConstraint, LayoutDeserializer,
-                          MultiTemplateImpositionEngine, OptimizedElement,
-                          PrefabLabelTemplate, ProductionPipeline)
+from .editor.cursor import Position, TextCursor
+from .editor.layout_engine import LayoutEngine
+from .editor.model import (CharFormat, Overflow, Paragraph, ParagraphFormat,
+                          SizingMode, TextObject, VAlign)
+from .editor.view import TextObjectView
+from .editor.textbox import TextBox
+from .editor.units import DocumentSpec, Unit, convert, from_pixels, to_pixels
+from .fields.label_fields import (BRAND, CURRENCY, DESCRIPTION, PARTNO, PRICE,
+                                 COMMERCIAL_NAME, INGREDIENTS, LEGAL_NAME,
+                                 LOYALTY_ADVANTAGE, ORIGINAL_PRICE, ORIGIN,
+                                 SANITARY_STAMP, SHRINKFLATION_NOTICE, UNITPRICE,
+                                 VARIETY, WEIGHT, Brand, CommercialName, Currency,
+                                 Description, Discount, Ingredients, LabelField,
+                                 LegalName, LoyaltyAdvantage, OriginalPrice, Origin,
+                                 PartNo, Price, SanitaryStamp, ShrinkflationNotice,
+                                 UnitPrice, Variety, Weight)
+from .core.label_design import (BarcodeField, BarcodeModel, LabelDocument,
+                               LabelFieldModel, LabelTheme, PriceField, PriceValue,
+                               PriceLabel, Severity, TextStyle, ValidationIssue,
+                               ValidationResult)
+from .print_system.printing import LabelPrinter, print_document
+from .core.label_product import PriceData, ProductData, PromotionData, decimal_value
+from .print_system.label_printing import (ColorMode, Orientation, PrintSpec,
+                                         PrintStatus, PrintSupport)
+from .core.label_graphics import (BarcodeElement, GraphicElement, GraphicKind,
+                                 LogoElement, PictogramElement)
+from .core.label_erp import ERPMetadata
+from .template.label_template import (Alignment, BoxEdge, ConstraintSolver,
+                                    DataBindingResolver, FontAutoScaler,
+                                    GraphicConstraint, LayoutDeserializer,
+                                    MultiTemplateImpositionEngine, OptimizedElement,
+                                    PrefabLabelTemplate, ProductionPipeline)
 
 __all__ = [
     "CharFormat",
