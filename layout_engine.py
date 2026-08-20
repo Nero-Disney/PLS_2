@@ -83,17 +83,36 @@ class LayoutEngine:
             return result
 
     def fit_to_content(self, obj: TextObject, placeholder: str = "") -> QRectF:
-        """Mesurer le contenu sans wrapping et mettre a jour la boite."""
-        font = _qfont_default(1.0)
-        metrics = QFontMetricsF(font)
-        paragraphs = obj.plain_text().split("\n")
-        if not any(paragraphs) and placeholder:
-            paragraphs = placeholder.split("\n")
-        widths = [metrics.horizontalAdvance(line) for line in paragraphs]
-        line_height = metrics.height()
+        """Mesurer le contenu naturel avec ses formats et ses paragraphes."""
+        text_is_empty = not any(paragraph.text for paragraph in obj.paragraphs)
+        if text_is_empty and placeholder:
+            paragraphs = [Paragraph(line) for line in placeholder.split("\n")]
+        else:
+            paragraphs = obj.paragraphs
+
+        widths = []
+        total_height = 0.0
+        for paragraph in paragraphs:
+            prefix = (paragraph.pformat.bullet + " ") if paragraph.pformat.bullet else ""
+            prefix_font = _qfont_default(1.0)
+            prefix_metrics = QFontMetricsF(prefix_font)
+            paragraph_width = prefix_metrics.horizontalAdvance(prefix)
+            paragraph_height = prefix_metrics.height()
+            if paragraph.text:
+                for start, end, fmt in paragraph.iter_runs():
+                    metrics = QFontMetricsF(_qfont(fmt, 1.0))
+                    paragraph_width += metrics.horizontalAdvance(
+                        paragraph.text[start:end])
+                    paragraph_height = max(paragraph_height, metrics.height())
+            widths.append(paragraph_width + paragraph.pformat.indent_left +
+                          paragraph.pformat.indent_first_line +
+                          paragraph.pformat.indent_right)
+            total_height += paragraph.pformat.space_before + paragraph_height
+            total_height += paragraph.pformat.space_after
+
         l, r, t, b = obj.margins
         width = max(widths or [0.0]) + l + r + 4.0
-        height = max(1.0, len(paragraphs)) * line_height + t + b
+        height = total_height + t + b
         obj.box.setWidth(max(40.0, width))
         obj.box.setHeight(max(30.0, height))
         return QRectF(obj.box)

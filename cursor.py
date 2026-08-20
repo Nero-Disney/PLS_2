@@ -109,7 +109,6 @@ class TextCursor:
         if self.pending_format is not None and not self.has_selection():
             return self.pending_format
         if self.has_selection():
-            self._record_edit()
             start, end = self.selection_range()
             fmts = self._formats_in_range(start, end)
             first = fmts[0]
@@ -150,6 +149,7 @@ class TextCursor:
         dans pending_format pour la prochaine frappe."""
         if self.has_selection():
             start, end = self.selection_range()
+            self._record_edit()
             for pi in range(start.para, end.para + 1):
                 p = self.obj.paragraphs[pi]
                 a = start.char if pi == start.para else 0
@@ -160,13 +160,24 @@ class TextCursor:
             self.pending_format = base.merged(**attrs)
 
     def insert_text(self, chars: str) -> None:
+        if not chars:
+            return
         self._record_edit()
         if self.has_selection():
             self._delete_selection()
-        p = self.obj.paragraphs[self.position.para]
         fmt = self.pending_format or self._inherited_format_at(self.position)
-        p.insert(self.position.char, chars, fmt)
-        self.position.char += len(chars)
+        parts = chars.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+        paragraph = self.obj.paragraphs[self.position.para]
+        paragraph.insert(self.position.char, parts[0], fmt)
+        self.position.char += len(parts[0])
+        for part in parts[1:]:
+            right = paragraph.split(self.position.char)
+            right.pformat = ParagraphFormat(**paragraph.pformat.__dict__)
+            self.obj.paragraphs.insert(self.position.para + 1, right)
+            self.position = Position(self.position.para + 1, 0)
+            paragraph = right
+            paragraph.insert(0, part, fmt)
+            self.position.char = len(part)
         self.pending_format = None  # consommé
 
     def insert_paragraph_break(self) -> None:

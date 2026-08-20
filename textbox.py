@@ -5,15 +5,18 @@ from __future__ import annotations
 from typing import Optional
 
 from PySide6.QtCore import QRectF
+from PySide6.QtCore import QPointF
 
 try:
-    from .model import Paragraph, SizingMode, TextObject
+    from .model import CharFormat, Paragraph, SizingMode, TextObject
     from .view import TextObjectView
     from .layout_engine import LayoutEngine
+    from .units import Unit, to_pixels
 except ImportError:  # pragma: no cover - support script execution
-    from model import Paragraph, SizingMode, TextObject
+    from model import CharFormat, Paragraph, SizingMode, TextObject
     from view import TextObjectView
     from layout_engine import LayoutEngine
+    from units import Unit, to_pixels
 
 
 class TextBox(TextObjectView):
@@ -28,15 +31,25 @@ class TextBox(TextObjectView):
                  width: float = 420.0, height: float = 220.0,
                  paragraphs: Optional[list[Paragraph]] = None,
                  placeholder: str = "", sizing: SizingMode | str =
-                 SizingMode.AUTO_FIT_CONTENT, parent=None):
-        content = paragraphs if paragraphs is not None else [Paragraph(text)]
-        obj = TextObject(QRectF(x, y, width, height), content)
+                 SizingMode.AUTO_FIT_CONTENT, unit: Unit | str = Unit.PIXEL,
+                 dpi: float = 96.0,
+                 default_format: Optional[CharFormat] = None, parent=None):
+        self.default_format = default_format or CharFormat()
+        content = (paragraphs if paragraphs is not None else
+                   [Paragraph(text, default_format=self.default_format)])
+        self.unit = Unit(unit)
+        self.dpi = dpi
+        obj = TextObject(QRectF(to_pixels(x, self.unit, dpi),
+                                to_pixels(y, self.unit, dpi),
+                                to_pixels(width, self.unit, dpi),
+                                to_pixels(height, self.unit, dpi)), content)
         obj.placeholder = placeholder
         obj.sizing_mode = self._parse_sizing(sizing)
         if obj.sizing_mode == SizingMode.LOCKED:
             obj.locked = True
         if obj.sizing_mode == SizingMode.AUTO_FIT_CONTENT:
             LayoutEngine().fit_to_content(obj, placeholder)
+        self._fitting = False
         super().__init__(obj, parent)
         self.setObjectName("textBox")
 
@@ -63,15 +76,24 @@ class TextBox(TextObjectView):
 
     @text.setter
     def text(self, value: str) -> None:
-        self.obj.paragraphs = [Paragraph(value)]
+        self.obj.paragraphs = [Paragraph(value, default_format=self.default_format)]
         self.cursor.position = self.cursor.position.__class__(0, 0)
         self.cursor.select_none()
         self._relayout()
 
     def _relayout(self):
+        if self._fitting:
+            return super()._relayout()
         if self.obj.sizing_mode == SizingMode.AUTO_FIT_CONTENT:
             self.engine.fit_to_content(self.obj, self.obj.placeholder)
-            self.resize(int(self.obj.box.width()), int(self.obj.box.height()))
+            target_width = int(self.obj.box.width())
+            target_height = int(self.obj.box.height())
+            if self.width() != target_width or self.height() != target_height:
+                self._fitting = True
+                try:
+                    self.resize(target_width, target_height)
+                finally:
+                    self._fitting = False
         super()._relayout()
 
     @property
@@ -88,12 +110,14 @@ class TextBox(TextObjectView):
             return
         if self.obj.sizing_mode == SizingMode.AUTO_FIT_CONTENT:
             self.obj.sizing_mode = SizingMode.FREE_RESIZE
-        self.resize(int(width), int(height))
+        self.resize(int(to_pixels(width, self.unit, self.dpi)),
+                    int(to_pixels(height, self.unit, self.dpi)))
 
     def move_box(self, x: float, y: float) -> None:
         """Deplacer la textbox et synchroniser sa position modele."""
         if self.obj.sizing_mode == SizingMode.LOCKED:
             return
-        self.move(int(x), int(y))
-        self.obj.position.setX(float(x))
-        self.obj.position.setY(float(y))
+        px = to_pixels(x, self.unit, self.dpi)
+        py = to_pixels(y, self.unit, self.dpi)
+        self.move(int(px), int(py))
+        self.obj.position = QPointF(px, py)

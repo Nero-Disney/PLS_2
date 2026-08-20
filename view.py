@@ -329,6 +329,11 @@ class TextObjectView(QWidget):
             self.cursor.position = new_pos
 
     def _move(self, delta: int, extend: bool):
+        if not extend and self.cursor.has_selection():
+            start, end = self.cursor.selection_range()
+            self.cursor.position = start if delta < 0 else end
+            self.cursor.select_none()
+            return
         pos = self.cursor.position
         p = self.obj.paragraphs[pos.para]
         new_char = pos.char + delta
@@ -361,7 +366,7 @@ class TextObjectView(QWidget):
         local_point = self._local_point(point)
         handle = self._handle_at(local_point) if self._selected else None
         if handle:
-            if self.obj.locked:
+            if self.obj.locked or self.obj.sizing_mode == SizingMode.LOCKED:
                 event.accept()
                 return
             self._drag_mode = "resize"
@@ -380,6 +385,7 @@ class TextObjectView(QWidget):
 
         border = self.obj.box.adjusted(3, 3, -3, -3)
         if (self._selected and not self.obj.locked and
+            self.obj.sizing_mode != SizingMode.LOCKED and
             self.obj.box.contains(local_point) and not border.contains(local_point)):
             self._drag_mode = "move"
             self._drag_start = point
@@ -451,6 +457,10 @@ class TextObjectView(QWidget):
         self.obj.position = QPointF(geometry.x(), geometry.y())
 
     def _resize_geometry(self, delta, modifiers):
+        if self.obj.sizing_mode == SizingMode.LOCKED:
+            return
+        if self.obj.sizing_mode == SizingMode.AUTO_FIT_CONTENT:
+            self.obj.sizing_mode = SizingMode.FREE_RESIZE
         geometry = QRectF(self._drag_geometry)
         handle = self._drag_handle
         if "left" in handle:

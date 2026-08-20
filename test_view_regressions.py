@@ -135,3 +135,91 @@ def test_textbox_sizing_modes_and_placeholder():
     locked = TextBox(text="locked", sizing="locked", width=200, height=100)
     locked.resize_box(300, 140)
     assert locked.width() == 200
+
+
+def test_arrow_keys_collapse_selection_to_the_expected_edge():
+    view = TextObjectView(TextObject(QRectF(0, 0, 200, 100),
+                                     [Paragraph("abcdef")]))
+    cursor = view.cursor
+    cursor.set_selection(Position(0, 1), Position(0, 5))
+
+    view._move(-1, extend=False)
+    assert cursor.position == Position(0, 1)
+    assert not cursor.has_selection()
+
+    cursor.set_selection(Position(0, 1), Position(0, 5))
+    view._move(1, extend=False)
+    assert cursor.position == Position(0, 5)
+    assert not cursor.has_selection()
+
+
+def test_multiline_insert_creates_paragraphs():
+    obj = TextObject(QRectF(0, 0, 200, 100), [Paragraph("beforeafter")])
+    cursor = TextCursor(obj)
+    cursor.position = Position(0, 6)
+
+    cursor.insert_text("one\ntwo")
+
+    assert [paragraph.text for paragraph in obj.paragraphs] == [
+        "beforeone", "twoafter"
+    ]
+    assert cursor.position == Position(1, 3)
+
+
+def test_format_read_is_not_an_undo_edit():
+    obj = TextObject(QRectF(0, 0, 200, 100), [Paragraph("hello")])
+    cursor = TextCursor(obj)
+    cursor.set_selection(Position(0, 0), Position(0, 5))
+    cursor.current_format()
+    cursor.apply_format_to_selection_or_pending(bold=True)
+
+    assert obj.paragraphs[0].format_at(0).bold
+    assert cursor.undo()
+    assert not obj.paragraphs[0].format_at(0).bold
+
+
+def test_auto_fit_uses_character_format_metrics():
+    try:
+        from .textbox import TextBox
+    except ImportError:
+        from textbox import TextBox
+    large = Paragraph("Large", default_format=CharFormat(font_size=48.0))
+    box = TextBox(paragraphs=[large], width=100, height=40)
+
+    assert box.height() >= 50
+    assert box.width() > 100
+
+
+def test_physical_units_are_converted_with_explicit_dpi():
+    try:
+        from .textbox import TextBox
+        from .units import Unit, from_pixels, to_pixels
+    except ImportError:
+        from textbox import TextBox
+        from units import Unit, from_pixels, to_pixels
+
+    assert abs(to_pixels(25.4, Unit.MILLIMETER, 300) - 300.0) < 0.001
+    assert abs(from_pixels(300, Unit.MILLIMETER, 300) - 25.4) < 0.001
+    box = TextBox(text="Prix", x=10, y=5, width=50, height=20,
+                  unit="mm", dpi=300, sizing="free_resize")
+    assert abs(box.width() - to_pixels(50, "mm", 300)) <= 1
+    assert abs(box.x() - to_pixels(10, "mm", 300)) <= 1
+
+
+def test_label_field_subclasses_keep_textbox_behavior_and_domain_defaults():
+    try:
+        from .label_fields import BRAND, DESCRIPTION, PARTNO, PRICE
+    except ImportError:
+        from label_fields import BRAND, DESCRIPTION, PARTNO, PRICE
+
+    brand = BRAND("Acme")
+    price = PRICE("12,995", currency="EUR", decimals=2)
+    description = DESCRIPTION("Produit")
+    part_number = PARTNO("AC-2048")
+
+    assert brand.text == "Acme"
+    assert price.text == "13,00 EUR"
+    assert price.field_id == "price"
+    assert description.obj.sizing_mode == SizingMode.FREE_RESIZE
+    assert part_number.text == "AC-2048"
+    assert len(price._handle_rects()) == 9
