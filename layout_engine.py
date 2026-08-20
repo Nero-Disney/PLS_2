@@ -45,6 +45,7 @@ class ParagraphLayout:
     qlayout: QTextLayout
     y_top: float          # position verticale (dans content_rect) du haut du paragraphe
     height: float
+    text_offset: int = 0  # caractères décoratifs préfixés (puce)
 
 
 @dataclass
@@ -73,6 +74,11 @@ class LayoutEngine:
                 scale *= self.SCALE_STEP
         else:
             result = self._layout_at_scale(obj, width, content.height(), 1.0)
+            if obj.overflow == Overflow.AUTOFIT_GROW and not result.fits:
+                l, r, t, b = obj.margins
+                obj.box.setHeight(max(obj.box.height(), result.total_height + t + b))
+                content = obj.content_rect()
+                result = self._layout_at_scale(obj, width, content.height(), 1.0)
             obj.font_scale = 1.0
             return result
 
@@ -84,7 +90,10 @@ class LayoutEngine:
         for para in obj.paragraphs:
             y += para.pformat.space_before * scale
 
-            qlayout = QTextLayout(para.text if para.text else " ")
+            prefix = (para.pformat.bullet + " ") if para.pformat.bullet else ""
+            display_text = prefix + (para.text if para.text else " ")
+            text_offset = len(prefix)
+            qlayout = QTextLayout(display_text)
             option = QTextOption(para.pformat.alignment)
             option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere
                                 if width < 1_000_000 else QTextOption.NoWrap)
@@ -102,7 +111,8 @@ class LayoutEngine:
                         cf.setVerticalAlignment(QTextCharFormat.AlignSuperScript)
                     elif fmt.baseline_shift < 0:
                         cf.setVerticalAlignment(QTextCharFormat.AlignSubScript)
-                    formats.append(QTextLayout.FormatRange(start=start, length=end - start, format=cf))
+                    formats.append(QTextLayout.FormatRange(
+                        start=start + text_offset, length=end - start, format=cf))
                     if fmt.font_size > max_size:
                         max_size, dominant_fmt = fmt.font_size, fmt
             qlayout.setFormats(formats)
@@ -136,6 +146,7 @@ class LayoutEngine:
             y += para.pformat.space_after * scale
             paragraph_layouts.append(ParagraphLayout(
                 paragraph=para, qlayout=qlayout, y_top=para_top, height=y - para_top,
+                text_offset=text_offset,
             ))
 
         total_height = y
@@ -155,15 +166,21 @@ class LayoutEngine:
                     ly = line.position().y()
                     if local_y <= ly + line.height() or li == pl.qlayout.lineCount() - 1:
                         char = line.xToCursor(point.x() - line.position().x())
-                        return (pi, char)
+                        if isinstance(char, tuple):
+                            char = char[0]
+                        char = max(pl.text_offset,
+                                   min(pl.text_offset + len(pl.paragraph), char))
+                        return (pi, char - pl.text_offset)
         return (0, 0)
 
     def cursor_rect(self, result: LayoutResult, para: int, char: int) -> QRectF:
         """Rectangle du caret pour (para, char), coordonnées content_rect."""
         pl = result.paragraph_layouts[para]
-        line = pl.qlayout.lineForTextPosition(char)
+        char = max(0, min(len(pl.paragraph), char))
+        display_char = char + pl.text_offset
+        line = pl.qlayout.lineForTextPosition(display_char)
         if not line.isValid():
             line = pl.qlayout.lineAt(max(0, pl.qlayout.lineCount() - 1))
-        x = line.cursorToX(char)[0] if isinstance(line.cursorToX(char), tuple) else line.cursorToX(char)
+        x = line.cursorToX(display_char)[0] if isinstance(line.cursorToX(display_char), tuple) else line.cursorToX(display_char)
         y = pl.y_top + line.position().y()
         return QRectF(x, y, 1.5, line.height())

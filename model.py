@@ -11,7 +11,7 @@ from dataclasses import dataclass, replace
 from enum import Enum, auto
 from typing import Optional
 
-from PySide6.QtCore import Qt, QRectF
+from PySide6.QtCore import Qt, QRectF, QPointF
 from PySide6.QtGui import QColor
 
 
@@ -134,11 +134,23 @@ class TextObject:
 
     def __init__(self, box: QRectF, paragraphs: Optional[list[Paragraph]] = None):
         self.paragraphs: list[Paragraph] = paragraphs or [Paragraph()]
-        self.box: QRectF = box
+        self.position: QPointF = box.topLeft()
+        self.box: QRectF = QRectF(0, 0, max(1.0, box.width()),
+                                  max(1.0, box.height()))
+        self.rotation: float = 0.0
         self.margins = (7.2, 7.2, 3.6, 3.6)  # left, right, top, bottom (pt, défauts PPT)
         self.valign: VAlign = VAlign.TOP
         self.overflow: Overflow = Overflow.AUTOFIT_SHRINK
         self.wrap: bool = True
+
+        # Apparence de l'objet, indépendante des adorners de sélection.
+        self.fill_color: Optional[str] = None
+        self.fill_opacity: int = 255
+        self.border_color: str = "#cccccc"
+        self.border_width: float = 1.0
+        self.border_style = Qt.SolidLine
+        self.corner_radius: float = 0.0
+        self.locked: bool = False
 
         # État calculé par le LayoutEngine (pas par l'utilisateur)
         self.font_scale: float = 1.0

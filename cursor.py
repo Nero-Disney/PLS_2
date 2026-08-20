@@ -10,6 +10,7 @@ Reproduit le comportement PowerPoint autour du formatage :
 from __future__ import annotations
 
 from dataclasses import dataclass
+from copy import deepcopy
 from typing import Optional
 
 try:
@@ -38,6 +39,37 @@ class TextCursor:
         # Format explicitement choisi par l'utilisateur (ex: clic sur "Gras"
         # sans sélection) en attente d'être appliqué à la prochaine frappe.
         self.pending_format: Optional[CharFormat] = None
+        self._undo_stack = []
+        self._redo_stack = []
+
+    def _snapshot(self):
+        return deepcopy((self.obj.paragraphs, self.position, self.anchor,
+                         self.pending_format))
+
+    def _record_edit(self):
+        self._undo_stack.append(self._snapshot())
+        self._redo_stack.clear()
+
+    def _restore(self, snapshot):
+        paragraphs, position, anchor, pending = deepcopy(snapshot)
+        self.obj.paragraphs = paragraphs
+        self.position = position
+        self.anchor = anchor
+        self.pending_format = pending
+
+    def undo(self) -> bool:
+        if not self._undo_stack:
+            return False
+        self._redo_stack.append(self._snapshot())
+        self._restore(self._undo_stack.pop())
+        return True
+
+    def redo(self) -> bool:
+        if not self._redo_stack:
+            return False
+        self._undo_stack.append(self._snapshot())
+        self._restore(self._redo_stack.pop())
+        return True
 
     # ---------- sélection ----------
 
@@ -56,6 +88,18 @@ class TextCursor:
         self.anchor = anchor
         self.position = pos
 
+    def selected_text(self) -> str:
+        if not self.has_selection():
+            return ""
+        start, end = self.selection_range()
+        parts = []
+        for pi in range(start.para, end.para + 1):
+            paragraph = self.obj.paragraphs[pi]
+            a = start.char if pi == start.para else 0
+            b = end.char if pi == end.para else len(paragraph)
+            parts.append(paragraph.text[a:b])
+        return "\n".join(parts)
+
     # ---------- format courant (pour la barre d'outils) ----------
 
     def current_format(self) -> CharFormat:
@@ -65,6 +109,7 @@ class TextCursor:
         if self.pending_format is not None and not self.has_selection():
             return self.pending_format
         if self.has_selection():
+            self._record_edit()
             start, end = self.selection_range()
             fmts = self._formats_in_range(start, end)
             first = fmts[0]
@@ -115,6 +160,7 @@ class TextCursor:
             self.pending_format = base.merged(**attrs)
 
     def insert_text(self, chars: str) -> None:
+        self._record_edit()
         if self.has_selection():
             self._delete_selection()
         p = self.obj.paragraphs[self.position.para]
@@ -124,6 +170,7 @@ class TextCursor:
         self.pending_format = None  # consommé
 
     def insert_paragraph_break(self) -> None:
+        self._record_edit()
         if self.has_selection():
             self._delete_selection()
         p = self.obj.paragraphs[self.position.para]
@@ -135,6 +182,9 @@ class TextCursor:
         self.pending_format = None
 
     def backspace(self) -> None:
+        if not self.has_selection() and self.position.char == 0 and self.position.para == 0:
+            return
+        self._record_edit()
         if self.has_selection():
             self._delete_selection()
             return

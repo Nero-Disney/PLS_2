@@ -1,31 +1,13 @@
-"""Démo minimaliste de l'éditeur de texte enrichi."""
+"""Lanceur rétrocompatible de l'application finale.
 
-from __future__ import annotations
-
-import os
-import sys
-
-if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-from PySide6.QtCore import QRectF
-from PySide6.QtWidgets import QApplication
+L'implémentation de la textbox n'est pas définie dans ce fichier. Pour
+lancer explicitement l'application, utiliser ``python final_app.py``.
+"""
 
 try:
-    from .model import Paragraph, TextObject
-    from .view import TextObjectView
+    from .final_app import main
 except ImportError:  # pragma: no cover - support script execution
-    from model import Paragraph, TextObject
-    from view import TextObjectView
-
-
-def main() -> int:
-    app = QApplication(sys.argv)
-    obj = TextObject(QRectF(0, 0, 420, 220), [Paragraph("Bonjour PLS_2 !")])
-    window = TextObjectView(obj)
-    window.resize(420, 220)
-    window.show()
-    return app.exec()
+    from final_app import main
 
 
 if __name__ == "__main__":
