@@ -82,6 +82,22 @@ class LayoutEngine:
             obj.font_scale = 1.0
             return result
 
+    def fit_to_content(self, obj: TextObject, placeholder: str = "") -> QRectF:
+        """Mesurer le contenu sans wrapping et mettre a jour la boite."""
+        font = _qfont_default(1.0)
+        metrics = QFontMetricsF(font)
+        paragraphs = obj.plain_text().split("\n")
+        if not any(paragraphs) and placeholder:
+            paragraphs = placeholder.split("\n")
+        widths = [metrics.horizontalAdvance(line) for line in paragraphs]
+        line_height = metrics.height()
+        l, r, t, b = obj.margins
+        width = max(widths or [0.0]) + l + r + 4.0
+        height = max(1.0, len(paragraphs)) * line_height + t + b
+        obj.box.setWidth(max(40.0, width))
+        obj.box.setHeight(max(30.0, height))
+        return QRectF(obj.box)
+
     def _layout_at_scale(self, obj: TextObject, width: float,
                           max_height: float, scale: float) -> LayoutResult:
         paragraph_layouts: list[ParagraphLayout] = []

@@ -33,5 +33,6 @@ def test_final_app_is_only_a_bootstrap_layer():
         from final_app import create_demo_object
 
     obj = create_demo_object()
-    assert obj.plain_text() == "Bonjour PLS_2 !"
-    assert obj.__class__.__module__.endswith("model")
+    assert obj.text == "Bonjour PLS_2 !"
+    assert obj.__class__.__name__ == "TextBox"
+    assert obj.model.__class__.__module__.endswith("model")

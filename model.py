@@ -28,6 +28,14 @@ class Overflow(Enum):
     AUTOFIT_GROW = auto()  # agrandit la boîte pour contenir le texte
 
 
+class SizingMode(Enum):
+    """Politique de dimensionnement de la boîte elle-même."""
+
+    AUTO_FIT_CONTENT = auto()  # suit la taille naturelle du contenu
+    FREE_RESIZE = auto()       # la géométrie est contrôlée par l'utilisateur
+    LOCKED = auto()            # la géométrie ne peut pas être manipulée
+
+
 @dataclass(frozen=True)
 class CharFormat:
     """Format résolu d'un caractère. Immuable + hashable pour permettre
@@ -142,6 +150,8 @@ class TextObject:
         self.valign: VAlign = VAlign.TOP
         self.overflow: Overflow = Overflow.AUTOFIT_SHRINK
         self.wrap: bool = True
+        self.sizing_mode: SizingMode = SizingMode.FREE_RESIZE
+        self.placeholder: str = ""
 
         # Apparence de l'objet, indépendante des adorners de sélection.
         self.fill_color: Optional[str] = None

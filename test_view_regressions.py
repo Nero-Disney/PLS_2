@@ -7,15 +7,18 @@ if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QRectF, QPointF, Qt
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication
 
 try:
-    from .model import Overflow, TextObject, VAlign, Paragraph, CharFormat
+    from .model import (Overflow, SizingMode, TextObject, VAlign, Paragraph,
+                        CharFormat)
     from .view import TextObjectView
     from .layout_engine import LayoutEngine
     from .cursor import TextCursor, Position
 except ImportError:  # pragma: no cover - support direct test execution
-    from model import Overflow, TextObject, VAlign, Paragraph, CharFormat
+    from model import (Overflow, SizingMode, TextObject, VAlign, Paragraph,
+                       CharFormat)
     from view import TextObjectView
     from layout_engine import LayoutEngine
     from cursor import TextCursor, Position
@@ -40,6 +43,8 @@ def test_package_exports_public_api():
 
     assert hasattr(pkg, "TextObjectView")
     assert "TextObjectView" in getattr(pkg, "__all__", [])
+    assert hasattr(pkg, "TextBox")
+    assert "TextBox" in getattr(pkg, "__all__", [])
 
 
 def test_bounding_box_has_eight_handles_and_respects_minimum_size():
@@ -95,3 +100,38 @@ def test_cursor_preserves_character_format_and_supports_undo_redo():
     assert cursor.obj.paragraphs[1].text == ""
     assert cursor.redo()
     assert cursor.obj.paragraphs[1].text == "x"
+
+
+def test_selection_paints_without_qt_cursor_coordinate_errors():
+    obj = TextObject(QRectF(0, 0, 240, 120), paragraphs=[Paragraph("selection render")])
+    view = TextObjectView(obj)
+    view.cursor.set_selection(Position(0, 0), Position(0, 9))
+    image = QImage(240, 120, QImage.Format_ARGB32)
+    image.fill(0)
+
+    view.render(image)
+
+    assert not image.isNull()
+
+
+def test_textbox_sizing_modes_and_placeholder():
+    try:
+        from .textbox import TextBox
+    except ImportError:
+        from textbox import TextBox
+
+    auto = TextBox(text="texte initial", width=420, height=220)
+    assert auto.model.sizing_mode == SizingMode.AUTO_FIT_CONTENT
+    assert auto.width() < 420
+
+    placeholder = TextBox(placeholder="Votre titre", width=420, height=220)
+    assert placeholder.width() >= 40
+    assert placeholder.model.placeholder == "Votre titre"
+
+    free = TextBox(text="free", sizing="free_resize", width=200, height=100)
+    free.resize_box(300, 140)
+    assert free.width() == 300
+
+    locked = TextBox(text="locked", sizing="locked", width=200, height=100)
+    locked.resize_box(300, 140)
+    assert locked.width() == 200

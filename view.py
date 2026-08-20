@@ -13,11 +13,11 @@ from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QTransform
 from PySide6.QtWidgets import QWidget, QApplication
 
 try:
-    from .model import TextObject, Overflow, VAlign
+    from .model import TextObject, Overflow, VAlign, SizingMode
     from .cursor import TextCursor, Position
     from .layout_engine import LayoutEngine
 except ImportError:  # pragma: no cover - support script execution
-    from model import TextObject, Overflow, VAlign
+    from model import TextObject, Overflow, VAlign, SizingMode
     from cursor import TextCursor, Position
     from layout_engine import LayoutEngine
 
@@ -123,6 +123,14 @@ class TextObjectView(QWidget):
             self._paint_caret(painter, content, v_offset)
         painter.restore()
 
+        if not self.obj.plain_text() and self.obj.placeholder:
+            painter.save()
+            self._apply_object_transform(painter)
+            painter.setPen(QColor("#888888"))
+            painter.drawText(self.obj.content_rect(), Qt.AlignLeft | Qt.AlignTop,
+                             self.obj.placeholder)
+            painter.restore()
+
         if self._selected:
             painter.save()
             self._apply_object_transform(painter)
@@ -208,6 +216,11 @@ class TextObjectView(QWidget):
         rect = rect.translated(content.left(), content.top() + v_offset)
         painter.fillRect(rect, QColor("#000000"))
 
+    @staticmethod
+    def _cursor_x(line, char):
+        value = line.cursorToX(char)
+        return value[0] if isinstance(value, tuple) else value
+
     def _paint_selection(self, painter, content, v_offset):
         start, end = self.cursor.selection_range()
         painter.save()
@@ -225,8 +238,8 @@ class TextObjectView(QWidget):
                 sel_a = max(a, l_start)
                 sel_b = min(b, l_end)
                 if sel_a < sel_b:
-                    x1 = line.cursorToX(sel_a)
-                    x2 = line.cursorToX(sel_b)
+                    x1 = self._cursor_x(line, sel_a + pl.text_offset)
+                    x2 = self._cursor_x(line, sel_b + pl.text_offset)
                     y = pl.y_top + line.position().y()
                     painter.fillRect(QRectF(x1, y, x2 - x1, line.height()), brush)
         painter.restore()
@@ -366,7 +379,8 @@ class TextObjectView(QWidget):
             return
 
         border = self.obj.box.adjusted(3, 3, -3, -3)
-        if self._selected and self.obj.box.contains(local_point) and not border.contains(local_point):
+        if (self._selected and not self.obj.locked and
+            self.obj.box.contains(local_point) and not border.contains(local_point)):
             self._drag_mode = "move"
             self._drag_start = point
             self._drag_geometry = self.geometry()

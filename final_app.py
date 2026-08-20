@@ -12,35 +12,32 @@ import sys
 if not os.environ.get("DISPLAY") and not os.environ.get("WAYLAND_DISPLAY"):
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QRectF
 from PySide6.QtWidgets import QApplication
 
 try:
-    from .model import Paragraph, TextObject
-    from .view import TextObjectView
+    from .textbox import TextBox
 except ImportError:  # pragma: no cover - support script execution
-    from model import Paragraph, TextObject
-    from view import TextObjectView
+    from textbox import TextBox
 
 
 DEFAULT_WIDTH = 420
 DEFAULT_HEIGHT = 220
 
 
-def create_demo_object() -> TextObject:
+def create_demo_object() -> TextBox:
     """Créer le contenu initial utilisé uniquement par l'application finale."""
-    return TextObject(
-        QRectF(0, 0, DEFAULT_WIDTH, DEFAULT_HEIGHT),
-        [Paragraph("Bonjour PLS_2 !")],
+    return TextBox(
+        text="Bonjour PLS_2 !",
+        width=DEFAULT_WIDTH,
+        height=DEFAULT_HEIGHT,
     )
 
 
 def create_application(argv=None):
     """Créer l'application Qt et sa textbox de démonstration."""
     app = QApplication.instance() or QApplication(argv or sys.argv)
-    window = TextObjectView(create_demo_object())
+    window = create_demo_object()
     window.setWindowTitle("PLS_2 - Textbox complète")
-    window.resize(DEFAULT_WIDTH, DEFAULT_HEIGHT)
     return app, window
 
 

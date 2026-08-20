@@ -25,6 +25,20 @@ python final_app.py
 la textbox : l'implémentation est exposée par le package et l'application de
 validation est isolée dans `final_app.py`.
 
+## API simplifiee
+
+```python
+from PLS_2 import TextBox
+
+box = TextBox(text="Bonjour", x=20, y=20, width=420, height=220)
+box.set_text("Nouveau texte")
+box.resize_box(500, 260)
+```
+
+`TextBox` est la facade recommandee. `TextObject`, `TextCursor`, `LayoutEngine`
+et `TextObjectView` restent disponibles pour les integrations avancees et la
+compatibilite avec le code existant.
+
 Dans un environnement sans affichage, Qt utilise automatiquement la plateforme
 `offscreen` pour les tests.
 

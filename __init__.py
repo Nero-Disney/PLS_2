@@ -2,8 +2,10 @@
 
 from .cursor import Position, TextCursor
 from .layout_engine import LayoutEngine
-from .model import CharFormat, Overflow, Paragraph, ParagraphFormat, TextObject, VAlign
+from .model import (CharFormat, Overflow, Paragraph, ParagraphFormat,
+                    SizingMode, TextObject, VAlign)
 from .view import TextObjectView
+from .textbox import TextBox
 
 __all__ = [
     "CharFormat",
@@ -15,5 +17,7 @@ __all__ = [
     "TextCursor",
     "TextObject",
     "TextObjectView",
+    "TextBox",
+    "SizingMode",
     "VAlign",
 ]
